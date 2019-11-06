@@ -100,8 +100,27 @@ func (p *Proxy) Run(stopCh <-chan struct{}) (<-chan struct{}, error) {
 	proxyHandler.ErrorHandler = p.Error
 
 	// wait for oidc auther to become ready
-	klog.Infof("waiting for oidc provider to become ready...")
-	time.Sleep(10 * time.Second)
+	go func() {
+		ticker := time.NewTicker(500 * time.Millisecond)
+		for {
+			select {
+			case <-ticker.C:
+				klog.Infof("waiting for oidc provider to become ready...")
+				fr, err := http.NewRequest("GET", "http://fake", nil)
+				if err != nil {
+					panic(err)
+				}
+				fr.Header.Set("Authorization", `Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImp0aSI6ImVlOTU4YTRlLTVmMzEtNGRkZC1iZWNkLTNhMTc3M2ViZWQ5MCIsImlhdCI6MTU3MzA1NzgxNiwiZXhwIjoxNTczMDYxNDE2fQ.5OKBPo7iUiqwVxD5oqRTp-lAalq2lL5o0s3xVjxh_Yw`)
+
+				if info, ok, err := p.oidcAuther.AuthenticateRequest(fr); err != nil {
+					klog.Infof("error with oidc: %+v", err)
+				} else {
+					klog.Infof("success with oidc: info=%+v, ok=%+v", info, ok)
+				}
+			}
+		}
+
+	}()
 
 	waitCh, err := p.serve(proxyHandler, stopCh)
 	if err != nil {
